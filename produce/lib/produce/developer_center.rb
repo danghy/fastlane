@@ -56,10 +56,12 @@ module Produce
         app_name = Produce.config[:app_name]
         UI.message("Creating new app '#{app_name}' on the Apple Dev Center")
 
-        app = Spaceship.app.create!(bundle_id: app_identifier,
-                                         name: app_name,
-                                         enable_services: enable_services,
-                                         mac: platform == "osx")
+        # app = Spaceship.app.create!(bundle_id: app_identifier,
+        #                                  name: app_name,
+        #                                  enable_services: enable_services,
+        #                                  mac: platform == "osx")
+
+        app = Spaceship::ConnectAPI::BundleId.create(name: app_name, identifier: app_identifier)
 
         if app.name != Produce.config[:app_name]
           UI.important("Your app name includes non-ASCII characters, which are not supported by the Apple Developer Portal.")
@@ -132,12 +134,28 @@ module Produce
     end
 
     def app_exists?
-      Spaceship.app.find(app_identifier, mac: platform == "osx") != nil
+      Spaceship::ConnectAPI::BundleId.find(app_identifier) != nil
     end
 
     def login
-      Spaceship.login(Produce.config[:username], nil)
-      Spaceship.select_team
+      if (api_token = Spaceship::ConnectAPI::Token.from(hash: Produce.config[:api_key], filepath: Produce.config[:api_key_path]))
+        UI.message("Creating authorization token for App Store Connect API")
+        Spaceship::ConnectAPI.token = api_token
+      elsif !Spaceship::ConnectAPI.token.nil?
+        UI.message("Using existing authorization token for App Store Connect API")
+      else
+        Produce.config[:username] ||= CredentialsManager::AppfileConfig.try_fetch_value(:apple_id)
+
+        # Username is now optional since addition of App Store Connect API Key
+        # Force asking for username to prompt user if not already set
+        Produce.config.fetch(:username, force_ask: true)
+
+        UI.message("Login to App Store Connect (#{Produce.config[:username]})")
+        # Spaceship::ConnectAPI.login(Produce.config[:username], use_portal: false, use_tunes: true, tunes_team_id: Produce.config[:team_id], team_name: Produce.config[:team_name])
+        # Prompts select team if multiple teams and none specified
+        Spaceship::ConnectAPI.login(Produce.config[:username], use_portal: true, use_tunes: false, portal_team_id: Produce.config[:team_id], team_name: Produce.config[:team_name])
+        UI.message("Login successful")
+      end
     end
   end
 end

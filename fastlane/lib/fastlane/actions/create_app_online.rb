@@ -10,6 +10,11 @@ module Fastlane
 
         return if Helper.test?
 
+        # Only set :api_key from SharedValues if :api_key_path isn't set (conflicting options)
+        unless params[:api_key_path]
+          params[:api_key] ||= Actions.lane_context[SharedValues::APP_STORE_CONNECT_API_KEY]
+        end
+
         Produce.config = params # we alread have the finished config
 
         Dir.chdir(FastlaneCore::FastlaneFolder.path || Dir.pwd) do
